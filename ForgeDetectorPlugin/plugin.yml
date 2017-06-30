@@ -5,3 +5,8 @@ description: Performs tests
 author: Skepter
 website: http://skepter.github.io/
 depend: [ProtocolLib]
+
+commands:
+   mods:
+     description: Checks which mods people have
+     aliases: [mod]

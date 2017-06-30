@@ -9,6 +9,8 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 import org.bukkit.Bukkit;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -29,15 +31,22 @@ import io.netty.buffer.Unpooled;
 public class Main extends JavaPlugin {
 
 	//pathetic simple implementation
+	//private Map<String, HashMap<String, String>> players;
 	private Set<String> players;
 	
+	@Override
+	public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+		if(label.equalsIgnoreCase("mods") || label.equalsIgnoreCase("mod")) {
+			//do stuff here
+			return true;
+		}
+		return false;
+	}
 	
 	@Override
 	public void onEnable() {	
 		players = new HashSet<String>();
-		
-		
-		
+		getCommand("mods").setExecutor(this);
 		//Protocol manager
 		ProtocolManager protManager = ProtocolLibrary.getProtocolManager();
 		
