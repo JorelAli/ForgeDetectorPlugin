@@ -1,0 +1,7 @@
+name: ForgeDetector
+main: io.github.skepter.forgedetector.Main
+version: 1.0
+description: Performs tests
+author: Skepter
+website: http://skepter.github.io/
+depend: [ProtocolLib]
