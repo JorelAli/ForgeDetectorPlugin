@@ -3,10 +3,8 @@ package io.github.skepter.forgedetector;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Set;
 
 import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
@@ -31,8 +29,8 @@ import io.netty.buffer.Unpooled;
 public class Main extends JavaPlugin {
 
 	//pathetic simple implementation
-	//private Map<String, HashMap<String, String>> players;
-	private Set<String> players;
+	private Map<String, Map<String, String>> players;
+	
 	
 	@Override
 	public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
@@ -45,7 +43,7 @@ public class Main extends JavaPlugin {
 	
 	@Override
 	public void onEnable() {	
-		players = new HashSet<String>();
+		players = new HashMap<String, Map<String, String>>();
 		getCommand("mods").setExecutor(this);
 		//Protocol manager
 		ProtocolManager protManager = ProtocolLibrary.getProtocolManager();
@@ -68,7 +66,7 @@ public class Main extends JavaPlugin {
 
 					@Override
 					public void onPostEvent(PacketEvent event) {
-						if(!players.contains(event.getPlayer().getName())) {
+						if(!players.containsKey(event.getPlayer().getName())) {
 							/* Send the register packet and server hello packet */
 							PacketSender.sendRegisterPacket(event.getPlayer());
 							PacketSender.sendServerHelloPacket(event.getPlayer());
@@ -118,7 +116,7 @@ public class Main extends JavaPlugin {
 			            for(Entry<String, String> entry : modTags.entrySet()) {
 			            	System.out.println(entry.getKey() + " " + entry.getValue());
 			            }
-						players.add(event.getPlayer().getName());
+						players.put(event.getPlayer().getName(), modTags);
 					}
 
 					
