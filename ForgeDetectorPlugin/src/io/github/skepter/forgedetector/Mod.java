@@ -41,7 +41,13 @@ public class Mod implements Comparable<Mod>{
 	
 	@Override
 	public String toString() {
-		return type.getModTypeName() + "<" + name + " " + version + ">";
+		return type.name() + "|" + name + "|" + version;
+	}
+	
+	
+	public static Mod fromString(String inputString) {
+		String[] data = inputString.split("|");
+		return new Mod(data[1], data[2], ModType.valueOf(data[0]));
 	}
 
 	@Override

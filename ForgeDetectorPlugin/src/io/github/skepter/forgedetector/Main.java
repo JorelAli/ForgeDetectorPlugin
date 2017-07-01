@@ -2,7 +2,6 @@ package io.github.skepter.forgedetector;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.TreeSet;
 
@@ -33,9 +32,9 @@ import io.netty.buffer.Unpooled;
 import net.eq2online.permissions.ReplicatedPermissionsContainer;
 
 public class Main extends JavaPlugin {
-
-	//pathetic simple implementation
+	
 	private Map<String, TreeSet<Mod>> players;
+	private ModStorage storage;
 	
 	/**
 	 * Gets the player's name from the players map
@@ -94,7 +93,9 @@ public class Main extends JavaPlugin {
 	
 	@Override
 	public void onEnable() {	
-		players = new HashMap<String, TreeSet<Mod>>();
+		storage = new ModStorage(this);
+		players = storage.get();
+		
 		getCommand("mods").setExecutor(this);
 		//Protocol manager
 		ProtocolManager protManager = ProtocolLibrary.getProtocolManager();
@@ -211,6 +212,11 @@ public class Main extends JavaPlugin {
 			}
 		});
 		
+	}
+	
+	@Override
+	public void onDisable() {
+		storage.store(players);
 	}
 	
 	private byte[] getBytesFromPacket(PacketContainer packet) {
