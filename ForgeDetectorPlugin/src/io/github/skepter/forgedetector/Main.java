@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.TreeSet;
 
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.plugin.Plugin;
@@ -30,16 +31,43 @@ import io.github.skepter.forgedetector.Mod.ModType;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import net.eq2online.permissions.ReplicatedPermissionsContainer;
-import net.md_5.bungee.api.ChatColor;
 
 public class Main extends JavaPlugin {
 
 	//pathetic simple implementation
 	private Map<String, TreeSet<Mod>> players;
 	
-	private boolean mapContains(String name) {
+	/**
+	 * Gets the player's name from the players map
+	 */
+	private String getName(String name) {
+		if(players.keySet().contains(name)) 
+			return name;
 		
-		return false;
+		for(String player : players.keySet()) 
+			if(name.equalsIgnoreCase(player)) 
+				return player;
+			
+		for(String player : players.keySet()) 
+			if(player.toLowerCase().startsWith(name.toLowerCase())) 
+				return player;
+			
+		return name;
+	}
+	
+	/**
+	 * Displays the list of mods for a specific player to the sender
+	 * @param sender - the sender to display the mods
+	 * @param playerInput - the player to look up mods for
+	 */
+	private void displayMods(CommandSender sender, String playerInput) {
+		for(Mod mod : players.get(playerInput)) {
+			if(mod.getType().equals(ModType.FORGE)) {
+				sender.sendMessage(" > " + ChatColor.YELLOW + "Forge: " + mod.getName() + ChatColor.WHITE + " " + mod.getVersion());
+			} else if(mod.getType().equals(ModType.LITEMOD)) {
+				sender.sendMessage(" > " + ChatColor.GREEN + "Litemod: " + mod.getName() + ChatColor.WHITE + " " + mod.getVersion());
+			}
+		}
 	}
 
 	@Override
@@ -48,26 +76,14 @@ public class Main extends JavaPlugin {
 			if(args.length == 0) {
 				for(String str : players.keySet()) {
 					sender.sendMessage("Looking up mods for: " + ChatColor.GREEN + str);
-					for(Mod mod : players.get(str)) {
-						if(mod.getType().equals(ModType.FORGE)) {
-							sender.sendMessage(" > " + ChatColor.YELLOW + "Forge: " + mod.getName() + ChatColor.WHITE + " " + mod.getVersion());
-						} else if(mod.getType().equals(ModType.LITEMOD)) {
-							sender.sendMessage(" > " + ChatColor.GREEN + "Litemod: " + mod.getName() + ChatColor.WHITE + " " + mod.getVersion());
-						}
-					}
+					displayMods(sender, str);
 				}
 			} else if(args.length == 1) {
-				sender.sendMessage("Looking up mods for: " + ChatColor.GREEN + args[0]);
-				if(!players.containsKey(args[0])) {
-					sender.sendMessage(" no mods available");
+				sender.sendMessage("Looking up mods for: " + ChatColor.GREEN + getName(args[0]));
+				if(!players.containsKey(getName(args[0]))) {
+					sender.sendMessage(" No mods found");
 				} else {
-					for(Mod mod : players.get(args[0])) {
-						if(mod.getType().equals(ModType.FORGE)) {
-							sender.sendMessage(" > " + ChatColor.YELLOW + "Forge: " + mod.getName() + ChatColor.WHITE + " " + mod.getVersion());
-						} else if(mod.getType().equals(ModType.LITEMOD)) {
-							sender.sendMessage(" > " + ChatColor.GREEN + "Litemod: " + mod.getName() + ChatColor.WHITE + " " + mod.getVersion());
-						}
-					}
+					displayMods(sender, args[0]);
 				}
 			}
 			
@@ -114,7 +130,6 @@ public class Main extends JavaPlugin {
 		//Output when a payload is found
 		protManager.addPacketListener(new PacketAdapter(this, ListenerPriority.NORMAL, Arrays.asList(PacketType.Play.Client.CUSTOM_PAYLOAD), ListenerOptions.INTERCEPT_INPUT_BUFFER) {
 			
-			
 			@SuppressWarnings("unused")
 			private String getByteArrayString(byte[] bytes) {
 				String[] arr = new String[bytes.length];
@@ -127,14 +142,14 @@ public class Main extends JavaPlugin {
 			
 			@Override
 			public void onPacketReceiving(PacketEvent event) {
-				System.out.println(">>> New incoming packet: " + event.getPacket().getStrings().read(0));
+				//System.out.println(">>> New incoming packet: " + event.getPacket().getStrings().read(0));
 				byte[] bytes = getBytesFromPacket(event.getPacket());
 				switch(event.getPacket().getStrings().read(0)) {
-					case "MC|Brand": {
-						ByteBuf buffer = Unpooled.copiedBuffer(bytes);
-						System.out.println(ByteBufUtils.readUTF8String(buffer));
-						break;
-					}
+//					case "MC|Brand": {
+//						ByteBuf buffer = Unpooled.copiedBuffer(bytes);
+//						System.out.println(ByteBufUtils.readUTF8String(buffer));
+//						break;
+//					}
 					case "FML|HS": {
 						//FML Mod list discriminator
 						if(bytes[0] == 2) {
@@ -156,6 +171,10 @@ public class Main extends JavaPlugin {
 							players.put(event.getPlayer().getName(), modList);
 						}
 						event.setCancelled(true);
+						/*
+						 * Client will crash here because we don't send a server modlist packet.
+						 * This is normal.
+						 */
 						break;
 					}
 					case "WECUI": {
