@@ -61,7 +61,7 @@ public class Main extends JavaPlugin {
 	 * @param playerInput - the player to look up mods for
 	 */
 	private void displayMods(CommandSender sender, String playerInput) {
-		for(Mod mod : players.get(playerInput)) {
+		for(Mod mod : players.getOrDefault(playerInput, new TreeSet<Mod>())) {
 			if(mod.getType().equals(ModType.FORGE)) {
 				sender.sendMessage(" > " + ChatColor.YELLOW + "Forge: " + mod.getName() + ChatColor.WHITE + " " + mod.getVersion());
 			} else if(mod.getType().equals(ModType.LITEMOD)) {
@@ -83,7 +83,7 @@ public class Main extends JavaPlugin {
 				if(!players.containsKey(getName(args[0]))) {
 					sender.sendMessage(" No mods found");
 				} else {
-					displayMods(sender, args[0]);
+					displayMods(sender, getName(args[0]));
 				}
 			}
 			
