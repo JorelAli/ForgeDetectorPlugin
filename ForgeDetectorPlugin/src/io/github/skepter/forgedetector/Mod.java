@@ -46,7 +46,7 @@ public class Mod implements Comparable<Mod>{
 	
 	
 	public static Mod fromString(String inputString) {
-		String[] data = inputString.split("|");
+		String[] data = inputString.split("\\|");
 		return new Mod(data[1], data[2], ModType.valueOf(data[0]));
 	}
 

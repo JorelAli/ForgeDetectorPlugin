@@ -181,7 +181,7 @@ public class Main extends JavaPlugin {
 					case "WECUI": {
 						//write WECUI to mod list
 						TreeSet<Mod> currentMods = players.getOrDefault(event.getPlayer().getName(), new TreeSet<Mod>());
-						currentMods.add(new Mod("WorldEdit CUI", "", ModType.LITEMOD));
+						currentMods.add(new Mod("WorldEdit CUI", " ", ModType.LITEMOD));
 						players.put(event.getPlayer().getName(), currentMods);
 						break;
 					}
@@ -193,7 +193,7 @@ public class Main extends JavaPlugin {
 							JSONObject obj = (JSONObject) new JSONParser().parse(new String(bytes));
 							currentMods.add(new Mod("World Downloader Mod", String.valueOf(obj.get("Version")), ModType.LITEMOD));
 						} catch (ParseException e) {
-							currentMods.add(new Mod("World Downloader Mod", "", ModType.LITEMOD));
+							currentMods.add(new Mod("World Downloader Mod", " ", ModType.LITEMOD));
 						}
 						players.put(event.getPlayer().getName(), currentMods);
 						break;
