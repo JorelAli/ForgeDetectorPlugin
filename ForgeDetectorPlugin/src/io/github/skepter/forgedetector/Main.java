@@ -4,7 +4,6 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.TreeSet;
 
 import org.bukkit.Bukkit;
@@ -112,12 +111,11 @@ public class Main extends JavaPlugin {
 			}
 		});
 		
-		
-		
-		
 		//Output when a payload is found
 		protManager.addPacketListener(new PacketAdapter(this, ListenerPriority.NORMAL, Arrays.asList(PacketType.Play.Client.CUSTOM_PAYLOAD), ListenerOptions.INTERCEPT_INPUT_BUFFER) {
 			
+			
+			@SuppressWarnings("unused")
 			private String getByteArrayString(byte[] bytes) {
 				String[] arr = new String[bytes.length];
 				for (int i = 0; i < bytes.length; i++) {
@@ -131,49 +129,47 @@ public class Main extends JavaPlugin {
 			public void onPacketReceiving(PacketEvent event) {
 				System.out.println(">>> New incoming packet: " + event.getPacket().getStrings().read(0));
 				byte[] bytes = getBytesFromPacket(event.getPacket());
-				//System.out.println(getByteArrayString(bytes));
-				//System.out.println(new String(bytes));
 				switch(event.getPacket().getStrings().read(0)) {
+					case "MC|Brand": {
+						ByteBuf buffer = Unpooled.copiedBuffer(bytes);
+						System.out.println(ByteBufUtils.readUTF8String(buffer));
+						break;
+					}
 					case "FML|HS": {
-						title("Found a custom payload packet");
-						Bukkit.getLogger().info("Found custom payload packet from client:");
-						Bukkit.getLogger().info("\tChannel name: " + event.getPacket().getStrings().read(0));
-						
-						System.out.println(getByteArrayString(bytes));
+						//FML Mod list discriminator
 						if(bytes[0] == 2) {
-							//they sent their mod list
+						
+							//copy bytes for parsing
 							ByteBuf buffer = Unpooled.copiedBuffer(bytes);
-							Map<String, String> modTags = new HashMap<String, String>();
+							
+							//read the discriminator to prevent AIOOBs
 							buffer.readByte();
+							
+							//read mod count
 							int modCount = ByteBufUtils.readVarInt(buffer, 2);
-							System.out.println(modCount);
-				            for (int i = 0; i < modCount; i++)    {
-				                modTags.put(ByteBufUtils.readUTF8String(buffer), ByteBufUtils.readUTF8String(buffer));
-				            }
+							
+							//put mod data from packet directly into local list
 			            	TreeSet<Mod> modList = new TreeSet<Mod>();
-				            for(Entry<String, String> entry : modTags.entrySet()) {
-				            	System.out.println(entry.getKey() + " " + entry.getValue());
-				            	modList.add(new Mod(entry.getKey(), entry.getValue(), ModType.FORGE));
+				            for (int i = 0; i < modCount; i++)    {
+				            	modList.add(new Mod(ByteBufUtils.readUTF8String(buffer), ByteBufUtils.readUTF8String(buffer), ModType.FORGE));
 				            }
-				            
 							players.put(event.getPlayer().getName(), modList);
 						}
-
-						
-						title("End of custom payload packet");
 						event.setCancelled(true);
-						
 						break;
 					}
 					case "WECUI": {
+						//write WECUI to mod list
 						TreeSet<Mod> currentMods = players.getOrDefault(event.getPlayer().getName(), new TreeSet<Mod>());
 						currentMods.add(new Mod("WorldEdit CUI", "", ModType.LITEMOD));
 						players.put(event.getPlayer().getName(), currentMods);
 						break;
 					}
 					case "WDL|INIT": {
+						//write WDL to mod list
 						TreeSet<Mod> currentMods = players.getOrDefault(event.getPlayer().getName(), new TreeSet<Mod>());
 						try {
+							//receive version from the WDL|INIT packet
 							JSONObject obj = (JSONObject) new JSONParser().parse(new String(bytes));
 							currentMods.add(new Mod("World Downloader Mod", String.valueOf(obj.get("Version")), ModType.LITEMOD));
 						} catch (ParseException e) {
@@ -183,6 +179,7 @@ public class Main extends JavaPlugin {
 						break;
 					}
 					case "PERMISSIONSREPL": {
+						//write other mods to mod list
 						ReplicatedPermissionsContainer permissionsContainer = ReplicatedPermissionsContainer.fromBytes(bytes);
 						
 						TreeSet<Mod> currentMods = players.getOrDefault(event.getPlayer().getName(), new TreeSet<Mod>());
