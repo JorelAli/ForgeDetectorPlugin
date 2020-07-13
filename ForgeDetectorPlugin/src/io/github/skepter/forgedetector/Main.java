@@ -2,18 +2,13 @@ package io.github.skepter.forgedetector;
 
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
-import java.util.Map;
-import java.util.TreeSet;
 
 import org.bukkit.Bukkit;
-import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.event.Listener;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
-import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
 
 import com.comphenix.protocol.PacketType;
 import com.comphenix.protocol.ProtocolLibrary;
@@ -25,90 +20,67 @@ import com.comphenix.protocol.events.PacketContainer;
 import com.comphenix.protocol.events.PacketEvent;
 import com.comphenix.protocol.events.PacketPostListener;
 import com.comphenix.protocol.utility.MinecraftReflection;
+import com.comphenix.protocol.wrappers.MinecraftKey;
 
-import io.github.skepter.forgedetector.Mod.ModType;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import net.eq2online.permissions.ReplicatedPermissionsContainer;
+import net.minecraft.server.v1_15_R1.PacketDataSerializer;
 
-public class Main extends JavaPlugin {
-	
-	private Map<String, TreeSet<Mod>> players;
-	private ModStorage storage;
-	
-	/**
-	 * Gets the player's name from the players map
-	 */
-	private String getName(String name) {
-		if(players.keySet().contains(name)) 
-			return name;
-		
-		for(String player : players.keySet()) 
-			if(name.equalsIgnoreCase(player)) 
-				return player;
-			
-		for(String player : players.keySet()) 
-			if(player.toLowerCase().startsWith(name.toLowerCase())) 
-				return player;
-			
-		return name;
-	}
-	
-	/**
-	 * Displays the list of mods for a specific player to the sender
-	 * @param sender - the sender to display the mods
-	 * @param playerInput - the player to look up mods for
-	 */
-	private void displayMods(CommandSender sender, String playerInput) {
-		for(Mod mod : players.getOrDefault(playerInput, new TreeSet<Mod>())) {
-			if(mod.getType().equals(ModType.FORGE)) {
-				sender.sendMessage(" > " + ChatColor.YELLOW + "Forge: " + mod.getName() + ChatColor.WHITE + " " + mod.getVersion());
-			} else if(mod.getType().equals(ModType.LITEMOD)) {
-				sender.sendMessage(" > " + ChatColor.GREEN + "Litemod: " + mod.getName() + ChatColor.WHITE + " " + mod.getVersion());
-			}
-		}
-	}
+public class Main extends JavaPlugin implements Listener {
 
 	@Override
 	public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-		if(label.equalsIgnoreCase("mods") || label.equalsIgnoreCase("mod")) {
-			if(args.length == 0) {
-				for(String str : players.keySet()) {
-					sender.sendMessage("Looking up mods for: " + ChatColor.GREEN + str);
-					displayMods(sender, str);
-				}
-			} else if(args.length == 1) {
-				sender.sendMessage("Looking up mods for: " + ChatColor.GREEN + getName(args[0]));
-				if(!players.containsKey(getName(args[0]))) {
-					sender.sendMessage(" No mods found");
-				} else {
-					displayMods(sender, getName(args[0]));
-				}
-			}
-			
+		if (label.equalsIgnoreCase("mods") || label.equalsIgnoreCase("mod")) {
 			return true;
 		}
 		return false;
 	}
-	
+
+	public Object getPacketDataSerializerOf(byte[] bytes) {
+		ByteBuf buffer = PacketContainer.createPacketBuffer();
+		buffer.writeBytes(bytes);
+		return MinecraftReflection.getPacketDataSerializer(buffer);
+	}
+
+	public String readPacketDataSerializer(Object packetDataSerializer) {
+		PacketDataSerializer data = (PacketDataSerializer) packetDataSerializer;
+		byte[] bytes = new byte[data.readableBytes()];
+		data.readBytes(bytes);
+		return new String(bytes) + " (" + Arrays.toString(bytes) + ")";
+	}
+
 	@Override
-	public void onEnable() {	
-		storage = new ModStorage(this);
-		players = storage.get();
-		
+	public void onEnable() {
 		getCommand("mods").setExecutor(this);
-		//Protocol manager
+
 		ProtocolManager protManager = ProtocolLibrary.getProtocolManager();
-		
+
+		protManager.addPacketListener(new PacketAdapter(this, PacketType.Play.Server.CUSTOM_PAYLOAD) {
+
+			@Override
+			public void onPacketSending(PacketEvent event) {
+				MinecraftKey key = event.getPacket().getMinecraftKeys().read(0);
+				if (key.getPrefix().equals("minecraft") && key.getKey().contentEquals("brand")) {
+					PacketContainer cPacket = new PacketContainer(PacketType.Play.Server.CUSTOM_PAYLOAD);
+					cPacket.getMinecraftKeys().write(0, new MinecraftKey("minecraft", "brand"));
+					cPacket.getModifier().write(1,
+							getPacketDataSerializerOf(new byte[] { 5, 102, 111, 114, 103, 101 }));
+					event.setPacket(cPacket);
+				}
+			}
+
+		});
+
 		/**
-		 * When the player is about to join the server (after the login success packet), begin the Forge handshake
+		 * When the player is about to join the server (after the login success packet),
+		 * begin the Forge handshake
+		 * 
 		 * @see http://wiki.vg/Minecraft_Forge_Handshake#Forge_handshake
 		 */
 		protManager.addPacketListener(new PacketAdapter(this, PacketType.Login.Server.SUCCESS) {
-			
+
 			@Override
 			public void onPacketSending(PacketEvent event) {
-				
+
 				event.getNetworkMarker().addPostListener(new PacketPostListener() {
 
 					@Override
@@ -118,126 +90,47 @@ public class Main extends JavaPlugin {
 
 					@Override
 					public void onPostEvent(PacketEvent event) {
-						if(!players.containsKey(event.getPlayer().getName())) {
-							PacketSender.sendRegisterPacket(event.getPlayer());
-							PacketSender.sendServerHelloPacket(event.getPlayer());
+
+						PacketContainer cPacket = new PacketContainer(PacketType.Play.Server.CUSTOM_PAYLOAD);
+						cPacket.getMinecraftKeys().write(0, new MinecraftKey("minecraft", "register"));
+						cPacket.getModifier().write(1,
+//								getPacketDataSerializerOf(new byte[] { 102, 109, 108, 58, 108, 111, 103, 105, 110, 119,
+//										114, 97, 112, 112, 101, 114, 0, 102, 109, 108, 58, 104, 97, 110, 100, 115, 104,
+//										97, 107, 101, 0, 97, 112, 112, 108, 101, 115, 107, 105, 110, 58, 115, 121, 110,
+//										99, 0, 102, 109, 108, 58, 112, 108, 97, 121, 0 }));
+								getPacketDataSerializerOf(new byte[] { 102, 109, 108, 58, 108, 111, 103, 105, 110, 119,
+										114, 97, 112, 112, 101, 114, 0, 102, 109, 108, 58, 104, 97, 110, 100, 115, 104,
+										97, 107, 101, 0, 102, 109, 108, 58, 112, 108, 97, 121, 0 }));
+
+						try {
+							ProtocolLibrary.getProtocolManager().sendServerPacket(event.getPlayer(), cPacket);
+						} catch (InvocationTargetException e) {
+							e.printStackTrace();
 						}
+
 					}
-					
+
 				});
 			}
 		});
-		
-		//Output when a payload is found
-		protManager.addPacketListener(new PacketAdapter(this, ListenerPriority.NORMAL, Arrays.asList(PacketType.Play.Client.CUSTOM_PAYLOAD), ListenerOptions.INTERCEPT_INPUT_BUFFER) {
-			
-			@SuppressWarnings("unused")
-			private String getByteArrayString(byte[] bytes) {
-				String[] arr = new String[bytes.length];
-				for (int i = 0; i < bytes.length; i++) {
-					byte b = bytes[i];
-					arr[i] = String.valueOf(b);
-				}
-				return Arrays.deepToString(arr);
-			}
-			
+
+		// Output when a payload is found
+		protManager.addPacketListener(new PacketAdapter(this, ListenerPriority.NORMAL,
+				Arrays.asList(PacketType.Play.Client.CUSTOM_PAYLOAD), ListenerOptions.INTERCEPT_INPUT_BUFFER) {
+
 			@Override
 			public void onPacketReceiving(PacketEvent event) {
-				//System.out.println(">>> New incoming packet: " + event.getPacket().getStrings().read(0));
-				byte[] bytes = getBytesFromPacket(event.getPacket());
-				switch(event.getPacket().getStrings().read(0)) {
-//					case "MC|Brand": {
-//						ByteBuf buffer = Unpooled.copiedBuffer(bytes);
-//						System.out.println(ByteBufUtils.readUTF8String(buffer));
-//						break;
-//					}
-					case "FML|HS": {
-						//FML Mod list discriminator
-						if(bytes[0] == 2) {
-						
-							//copy bytes for parsing
-							ByteBuf buffer = Unpooled.copiedBuffer(bytes);
-							
-							//read the discriminator to prevent AIOOBs
-							buffer.readByte();
-							
-							//read mod count
-							int modCount = ByteBufUtils.readVarInt(buffer, 2);
-							
-							//put mod data from packet directly into local list
-			            	TreeSet<Mod> modList = new TreeSet<Mod>();
-				            for (int i = 0; i < modCount; i++)    {
-				            	modList.add(new Mod(ByteBufUtils.readUTF8String(buffer), ByteBufUtils.readUTF8String(buffer), ModType.FORGE));
-				            }
-							players.put(event.getPlayer().getName(), modList);
-						}
-						event.setCancelled(true);
-						/*
-						 * Client will crash here because we don't send a server modlist packet.
-						 * This is normal.
-						 */
-						break;
-					}
-					case "WECUI": {
-						//write WECUI to mod list
-						TreeSet<Mod> currentMods = players.getOrDefault(event.getPlayer().getName(), new TreeSet<Mod>());
-						currentMods.add(new Mod("WorldEdit CUI", " ", ModType.LITEMOD));
-						players.put(event.getPlayer().getName(), currentMods);
-						break;
-					}
-					case "WDL|INIT": {
-						//write WDL to mod list
-						TreeSet<Mod> currentMods = players.getOrDefault(event.getPlayer().getName(), new TreeSet<Mod>());
-						try {
-							//receive version from the WDL|INIT packet
-							JSONObject obj = (JSONObject) new JSONParser().parse(new String(bytes));
-							currentMods.add(new Mod("World Downloader Mod", String.valueOf(obj.get("Version")), ModType.LITEMOD));
-						} catch (ParseException e) {
-							currentMods.add(new Mod("World Downloader Mod", " ", ModType.LITEMOD));
-						}
-						players.put(event.getPlayer().getName(), currentMods);
-						break;
-					}
-					case "PERMISSIONSREPL": {
-						//write other mods to mod list
-						ReplicatedPermissionsContainer permissionsContainer = ReplicatedPermissionsContainer.fromBytes(bytes);
-						
-						TreeSet<Mod> currentMods = players.getOrDefault(event.getPlayer().getName(), new TreeSet<Mod>());
-						currentMods.add(new Mod(permissionsContainer.modName, String.valueOf(permissionsContainer.modVersion), ModType.LITEMOD));
-						players.put(event.getPlayer().getName(), currentMods);
-						break;
-					}
-						
-				}
+				System.out.println(
+						">>> New incoming packet: " + event.getPacket().getMinecraftKeys().read(0).getFullKey());
+				System.out.println(
+						"    packet data: " + readPacketDataSerializer(event.getPacket().getModifier().read(1)));
 			}
 		});
-		
-	}
-	
-	@Override
-	public void onDisable() {
-		storage.store(players);
-	}
-	
-	private byte[] getBytesFromPacket(PacketContainer packet) {
-		if(packet.getType().equals(PacketType.Play.Client.CUSTOM_PAYLOAD)) {
-			Object serializerObject = MinecraftReflection.getPacketDataSerializer(packet.getModifier().read(1));
-			try {
-				return (byte[]) serializerObject.getClass().getDeclaredMethod("array").invoke(serializerObject);
-			} catch (IllegalAccessException | IllegalArgumentException | InvocationTargetException
-					| NoSuchMethodException | SecurityException e) {
-				e.printStackTrace();
-			}
-		}
-		return null;
-	}
-	
-	public static Main getInstance() {
-		return JavaPlugin.getPlugin(Main.class);
+
 	}
 
-	public void title(String str) {
-		Bukkit.getLogger().info("################################################# " + str + " #################################################");
+	public static Main getInstance() {
+		return JavaPlugin.getPlugin(Main.class);
 	}
 
 }

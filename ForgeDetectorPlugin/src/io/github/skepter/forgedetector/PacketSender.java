@@ -18,8 +18,10 @@ public class PacketSender {
 		try {
 			
 			PacketContainer cPacket = new PacketContainer(PacketType.Play.Server.CUSTOM_PAYLOAD);
-			cPacket.getStrings().write(0, channel);
-			cPacket.getModifier().write(1, MinecraftReflection.getPacketDataSerializer(bytebuf));
+			cPacket.getStrings().write(1, channel);
+			//minecraft:registerfml:loginwrapper\0fml:handshake\0fml:play\0
+			cPacket.getByteArrays().write(2, "minecraft:registerfml:loginwrapper\\0fml:handshake\\0fml:play\\0".getBytes());
+//			cPacket.getModifier().write(1, MinecraftReflection.getPacketDataSerializer(bytebuf));
 			ProtocolLibrary.getProtocolManager().sendServerPacket(player, cPacket);
 			
 		} catch (InvocationTargetException | SecurityException | IllegalArgumentException e) {

@@ -1,0 +1,1 @@
+System.out.println(java.util.Arrays.toString("\0".getBytes()));
